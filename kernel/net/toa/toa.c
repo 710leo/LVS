@@ -21,7 +21,10 @@ struct toa_stats_entry toa_stats[] = {
 	TOA_STAT_END
 };
 
-DEFINE_TOA_STAT(struct toa_stat_mib, ext_stats);
+/*
+ * DEFINE_TOA_STAT(struct toa_stat_mib, ext_stats);
+ */
+struct toa_stat_mib *ext_stats;
 
 /*
  * Funcs for toa hooks
@@ -233,7 +236,7 @@ tcp_v6_syn_recv_sock_toa(struct sock *sk, struct sk_buff *skb,
 	/* set our value if need */
 	if (NULL != newsock && NULL == newsock->sk_user_data) {
 		newsock->sk_user_data = get_toa_data(skb);
-		if (NULL != newsock->sk_user_data) {
+		if (NULL != newsock->sk_user_data) 
 			TOA_INC_STATS(ext_stats, SYN_RECV_SOCK_TOA_CNT);
 		else
 			TOA_INC_STATS(ext_stats, SYN_RECV_SOCK_NO_TOA_CNT);
@@ -259,7 +262,7 @@ hook_toa_functions(void)
 #ifdef CONFIG_IP_VS_IPV6
 	/* hook inet6_getname for ipv6 */
 	struct proto_ops *inet6_stream_ops_p =
-			struct proto_ops *)&inet6_stream_ops;
+			(struct proto_ops *)&inet6_stream_ops;
 	/* hook tcp_v6_syn_recv_sock for ipv6 */
 	struct inet_connection_sock_af_ops *ipv6_specific_p =
 			(struct inet_connection_sock_af_ops *)&ipv6_specific;
