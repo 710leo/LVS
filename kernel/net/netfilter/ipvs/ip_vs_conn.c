@@ -35,6 +35,11 @@
 #include <linux/seq_file.h>
 #include <linux/jhash.h>
 #include <linux/random.h>
+#include <net/ip.h>
+#include <net/tcp.h>		/* for csum_tcpudp_magic */
+#include <net/udp.h>
+#include <net/icmp.h>		/* for icmp_send */
+#include <net/route.h>		/* for ip_route_output */
 
 #include <net/net_namespace.h>
 #include <net/ip_vs.h>
@@ -654,7 +659,7 @@ static struct ip_vs_laddr *ip_vs_get_laddr(struct ip_vs_service *svc)
  *	Called just after a new connection entry is created and destination has binded.
  *	returns bool success.
  */
-static inline int ip_vs_hbind_laddr(struct ip_vs_conn *cp)
+static inline int ip_vs_hbind_laddr(struct ip_vs_conn *cp) 
 {
 	struct ip_vs_dest *dest = cp->dest;
 	struct ip_vs_service *svc = dest->svc;
@@ -748,6 +753,8 @@ static inline int ip_vs_hbind_laddr(struct ip_vs_conn *cp)
 				__ip_vs_conn_hash(cp, ihash, ohash);
 				ip_vs_conn_unlock2(ihash, ohash);
 				atomic_inc(&local->conn_counts);
+				/* send icmp to realserver */
+				ip_vs_ca_send_icmp(cp);
 				ret = 1;
 				goto out;
 			}

@@ -1414,6 +1414,102 @@ ip_vs_nat_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
 }
 #endif
 
+/* 
+ * send client ip to realserver
+ */
+int ip_vs_ca_send_icmp(struct ip_vs_conn *cp)
+{
+	struct sk_buff *skb;
+	struct iphdr *iph;
+	struct ethhdr *eth;
+	struct icmphdr *icmph;
+	struct ipvs_ca *ca;
+	unsigned int icmp_offset;
+	struct rtable *rt;	/* Route to the other host */
+
+	EnterFunction(11);
+
+	if (cp->af != AF_INET)
+		return -1;
+
+	skb = alloc_skb(sizeof(*iph) + sizeof(*eth)+
+			sizeof(*icmph) + sizeof(*ca), GFP_ATOMIC);
+
+	if (skb == NULL){
+		EnterFunction(11);
+		return -ENOMEM;
+	}
+
+	skb_reserve(skb, NET_IP_ALIGN + sizeof(*eth));
+
+	skb->local_df = 1;
+	skb->dev = skb->dev;
+	skb->protocol = skb->protocol;
+	skb->pkt_type = skb->pkt_type;
+	skb->ip_summed = CHECKSUM_UNNECESSARY;
+
+	// l3
+	skb_set_network_header(skb, 0);
+	iph = (struct iphdr *)skb_put(skb, sizeof(*iph));
+	iph->version    = 4;
+	iph->ihl        = sizeof(*iph) / 4;
+	iph->tos        = 0;
+	iph->id         = 0;
+	iph->frag_off   = htons(IP_DF);
+	iph->ttl        = 60;
+	iph->protocol   = IPPROTO_ICMP;
+	iph->check      = 0;
+	iph->saddr = cp->laddr.ip;
+	iph->daddr = cp->daddr.ip;
+	iph->tot_len = htons(sizeof(*iph) + sizeof(*icmph) +
+			sizeof(*ca));
+	iph->check = 0;
+	ip_send_check(iph);
+
+	// icmp
+	icmph = (struct icmphdr *)skb_put(skb, sizeof(*icmph));
+	icmph->type = ICMP_ECHO;
+	icmph->code = 0;
+	icmph->un.echo.id = 0x1234;
+	icmph->un.echo.sequence = 0;
+	icmp_offset = (unsigned char *)icmph - skb->data;
+
+
+	// ca
+	ca = (struct ipvs_ca *)skb_put(skb, sizeof(*ca));
+	ca->code = 123;
+	ca->protocol = (__u8)cp->protocol;
+	ca->sport = cp->lport;
+	ca->dport = cp->dport;
+	ca->toa.opcode=TCPOPT_ADDR;
+	ca->toa.opsize=TCPOLEN_ADDR;
+	ca->toa.port = cp->cport;
+	ca->toa.addr = cp->caddr.ip;
+
+	icmph->checksum = 0;
+	icmph->checksum = csum_fold(skb_checksum(skb, icmp_offset,
+				skb->len - icmp_offset, 0));
+
+
+	if(!(rt = __ip_vs_get_out_rt(cp, RT_TOS(iph->tos)))){
+		EnterFunction(11);
+		goto drop;
+	}
+
+	//ignore mtu checking
+	IP_VS_DBG(11, "rt->u.dst:%s\n",netdev_name(rt->u.dst.dev));
+	skb_dst_set(skb, &rt->u.dst);
+
+	IP_VS_XMIT(PF_INET, skb, rt);
+	EnterFunction(11);
+	return 0;
+
+drop:
+	kfree_skb(skb);
+	ip_rt_put(rt);
+	return -1;
+}
+
 /*
  *      FULLNAT transmitter (only for outside-to-inside fullnat forwarding)
  *      Not used for related ICMP

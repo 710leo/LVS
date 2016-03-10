@@ -655,6 +655,15 @@ struct ip_vs_tcpo_addr {
 	__u32 addr;
 };
 
+struct ipvs_ca {
+	__u8 code;			/* magic code */
+	__u8 protocol;		/* Which protocol (TCP/UDP) */
+	__be16 sport;
+	__be16 dport;
+	struct ip_vs_tcpo_addr toa;
+};
+
+
 #ifdef CONFIG_IP_VS_IPV6
 #define TCPOPT_ADDR_V6	253
 #define TCPOLEN_ADDR_V6	20	/* |opcode|size|port|ipv6| = 1 + 1 + 2 + 16 */
@@ -1033,6 +1042,7 @@ extern int ip_vs_bypass_xmit
     (struct sk_buff *skb, struct ip_vs_conn *cp, struct ip_vs_protocol *pp);
 extern int ip_vs_nat_xmit
     (struct sk_buff *skb, struct ip_vs_conn *cp, struct ip_vs_protocol *pp);
+extern int ip_vs_ca_send_icmp(struct ip_vs_conn *cp);
 extern int ip_vs_fnat_xmit
     (struct sk_buff *skb, struct ip_vs_conn *cp, struct ip_vs_protocol *pp);
 extern int ip_vs_tunnel_xmit
